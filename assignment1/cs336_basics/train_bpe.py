@@ -6,8 +6,6 @@ from pprint import pprint
 import traceback
 import json
 
-# import pickle
-
 DEBUG_PRE_TOKEN_FILE="pre_token.json"
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 PROCESSES_NUM = 8
@@ -195,18 +193,6 @@ def token_merge(
                         delete_old_pairs(merged_dict, old_key, value) 
                         update_merged_dict(merged_dict, new_key, value, index)
                     delete_old_pairs(merged_dict, tokens, value)
-                    # # special scenario: baaaab
-                    # delete_value = 0
-                    # while i + 2 < len(key) and tokens[0] == tokens[1] and key[i+2] == tokens[0]:
-                    #     delete_value += value
-                    #     i += 1
-                    #     # need to minus token-pair
-                    #     delete_old_pairs(merged_dict, old_key, value) 
-                    # if i+2 < len(key):
-                    #     old_key = (key[i+1], key[i+2])
-                    #     new_key = (new_merged_token, key[i+2])
-                    #     delete_old_pairs(merged_dict, old_key, value) 
-
                     # if tokens are not repeated or it is last element, count
                     if i == len(key) - 3 or (i < len(key)-3 and (key[i+2] != tokens[0] or key[i+3] != tokens[1])):
                         old_key = (key[i+1], key[i+2])
@@ -259,10 +245,13 @@ def run_train_bpe(
 
 if __name__ == "__main__": 
    SPECIAL_TOKENS = "<|endoftext|>"
-#    pprint(pre_tokenization("test_token.txt", 1, [SPECIAL_TOKENS]))
-   [vocab, merges] = run_train_bpe("test_token.txt", 1000, [SPECIAL_TOKENS], 1) 
-   print("Vocab----------------------------")
-   pprint(vocab)
-   print("Merges---------------------")
-   pprint(merges)
+   [vocab, merges] = run_train_bpe("tinystories_sample_5M.txt", 1000, [SPECIAL_TOKENS], 1) 
+   print(vocab)
+   vocab_str = {v.decode("utf-8"): k for k, v in vocab.items()}
+   with open("vocab.json", "w", encoding="utf-8") as f:
+        json.dump(vocab_str, f, ensure_ascii=False)
      
+   with open("merges.txt", "w") as f:
+        for pair in merges:
+            f.write(" ".join(b.decode("utf-8", errors="replace") for b in pair))
+            f.write("\n")
