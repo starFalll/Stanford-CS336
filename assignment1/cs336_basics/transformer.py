@@ -3,7 +3,7 @@ from .multi_head import CausalMultiHeadSelfAttention
 from .positionwise import SwiGLU
 from .embedding import Embedding
 from .linear import Linear
-# from .softmax import Softmax
+from .softmax import Softmax
 import torch
 import torch.nn as nn
 from jaxtyping import Float, Int
@@ -30,15 +30,15 @@ class TransFormerBlock(nn.Module):
 
 class Transformer(nn.Module):
     def __init__(
-    self, 
-    vocab_size: int,
-    context_length: int,
-    d_model: int,
-    num_layers: int,
-    num_heads: int,
-    d_ff: int,
-    rope_theta: float,
-):
+        self, 
+        vocab_size: int,
+        context_length: int,
+        d_model: int,
+        num_layers: int,
+        num_heads: int,
+        d_ff: int,
+        rope_theta: float,
+    ):
         super().__init__()
         self.num_layers = num_layers
         self.token_embeddings = Embedding(vocab_size, d_model)
@@ -47,7 +47,7 @@ class Transformer(nn.Module):
         self.ln_final = RMSNorm(d_model=d_model)
         self.lm_head = Linear(d_model, vocab_size)
 
-    def forward(self, x: Int[Tensor, " batch_size sequence_length"]) -> torch.tensor:
+    def forward(self, x: Int[Tensor, " batch_size sequence_length"]) -> Float[Tensor, " batch_size sequence_length vocab_size"]:
         x = self.token_embeddings(x)
         for layer in self.layers:
             x = layer(x)
@@ -55,4 +55,24 @@ class Transformer(nn.Module):
         x = self.lm_head(x)
         # x = Softmax(x, -2)
         return x
+    
+    def generate(self, input: Int[Tensor, "batch_size sequence_length"], top_p: float, max_new_tokens, eos_token_id, temperature: float = 1.0) -> torch.tensor:
+        original_length = len(input)
+        for _ in range(max_new_tokens):
+            logits = self(input)
+            probs = Softmax(logits, -1, temperature)
+            next_token = probs[:, -1, :]
+            sorted_probs, sorted_indices = torch.sort(next_token, dim = -1, descending=True)
+            cumulative_probs = torch.cumsum(sorted_probs, dim = -1)
+            mask = cumulative_probs > top_p
+            sorted_probs[mask] = 0
+            sorted_probs /= sorted_probs.sum()
+            # The output is not always the one with the highest probability, but is random, making the generated text more natural.
+            next_token = sorted_indices[torch.multinomial(sorted_probs, num_samples=1)]
+            if next_token == eos_token_id:
+                break
+            input = torch.cat((input, next_token), dim=-1)
+        return input[:, original_length:]
+
+
     
