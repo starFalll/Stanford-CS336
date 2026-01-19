@@ -1,10 +1,12 @@
 import os
+import pathlib
 from typing import BinaryIO
 from multiprocessing import Pool
 import regex as re
 from pprint import pprint
 import traceback
 import json
+from tests.common import gpt2_bytes_to_unicode
 
 DEBUG_PRE_TOKEN_FILE="pre_token.json"
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -242,16 +244,57 @@ def run_train_bpe(
     except Exception as e:
         print(f"An unexpected error occurred: {e}, trace:{traceback.format_exc()}")
 
+def bytes_to_unicode_escape(b: bytes) -> str:
+    print(b)
+    return ''.join(f'\\u{byte:04X}' for byte in b)
+
+def train_bpe(
+    vocab_file,
+    merges_file,
+    input_path: str | os.PathLike,
+    vocab_size: int,
+    special_tokens: list[str],
+    processes_num: int = PROCESSES_NUM):
+    [vocab, merges] = run_train_bpe(input_path, vocab_size, special_tokens, processes_num)
+    # Get GPT-2 byte → unicode mapping
+    gpt2_byte_decoder = gpt2_bytes_to_unicode()  # dict[int, str]
+
+    # Convert your vocab bytes to unicode strings using GPT-2 mapping
+    vocab_to_save = {
+        ''.join(gpt2_byte_decoder[b] for b in token): idx
+        for idx, token in vocab.items()
+    }
+    with open(vocab_file, "w", encoding="utf-8") as f:
+        json.dump(vocab_to_save, f, indent=2, ensure_ascii=False)
+    # with open(merges_file, "w", encoding="utf-8") as f:
+    #     for merge_token_1, merge_token_2 in merges:
+    #         f.write(f"{merge_token_1} {merge_token_2}\n")
+    with open(merges_file, "w", encoding="utf-8") as f:
+        for merge_token_1, merge_token_2 in merges:
+            # Convert each byte in the tuple to a printable string
+            token1 = ''.join(gpt2_byte_decoder[b] for b in merge_token_1)
+            token2 = ''.join(gpt2_byte_decoder[b] for b in merge_token_2)
+            f.write(f"{token1} {token2}\n")
 
 if __name__ == "__main__": 
-   SPECIAL_TOKENS = "<|endoftext|>"
-   [vocab, merges] = run_train_bpe("tinystories_sample_5M.txt", 1000, [SPECIAL_TOKENS], 1) 
-   print(vocab)
-   vocab_str = {v.decode("utf-8"): k for k, v in vocab.items()}
-   with open("vocab.json", "w", encoding="utf-8") as f:
-        json.dump(vocab_str, f, ensure_ascii=False)
-     
-   with open("merges.txt", "w") as f:
-        for pair in merges:
-            f.write(" ".join(b.decode("utf-8", errors="replace") for b in pair))
-            f.write("\n")
+    SPECIAL_TOKENS = "<|endoftext|>"
+    valid_path = pathlib.Path(__file__).resolve().parent.parent / "data/TinyStoriesV2-GPT4-train.txt"
+    train_bpe("train_vocab.json", "train_merges.txt", valid_path, 10000, [SPECIAL_TOKENS])
+    # [vocab, merges] = run_train_bpe(valid_path, 10000, [SPECIAL_TOKENS], 8) 
+    # count = 0
+    # vocab_str = {}
+    # for k, v in vocab.items():
+    #     vocab_str[str(v)] = k 
+    # #    vocab_str = {v.decode("utf-8"): k for k, v in vocab.items()}
+    # with open("valid_vocab.json", "w", encoding="utf-8") as f:
+    #     json.dump(vocab_str, f, ensure_ascii=False)
+        
+    # with open("valid_merges.txt", "w") as f:
+    #     for pair in merges:
+    #         # f.write(" ".join(b.decode("utf-8", errors="replace") for b in pair))
+    #         f.write(" ".join(b for b in pair))
+    #         f.write("\n")
+    # SPECIAL_TOKENS = "<|endoftext|>"
+    # valid_path = pathlib.Path(__file__).resolve().parent.parent / "tests/fixtures/corpus.en"
+    # vocab, merges = run_train_bpe(valid_path, 500, [SPECIAL_TOKENS], 8)
+    # print(vocab, merges) 

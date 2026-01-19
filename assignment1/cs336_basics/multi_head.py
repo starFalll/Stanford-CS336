@@ -13,17 +13,19 @@ class CausalMultiHeadSelfAttention(nn.Module):
     d_model: int,
     num_heads: int,
     theta: float | None = None,
-    max_seq_len: int | None = None):
+    max_seq_len: int | None = None,
+    device: torch.device | None = None, 
+    dtype: torch.dtype | None = None):
         super().__init__()
         self.d_model = d_model
         self.d_h = num_heads
         self.max_seq_len = max_seq_len
         self.d_v = d_model // num_heads
         self.rope = RoPE(theta=theta, d_k=self.d_v, max_seq_len=max_seq_len) if theta else None
-        self.q_proj = Linear(d_model, self.d_v * num_heads) 
-        self.k_proj = Linear(d_model, self.d_v * num_heads) 
-        self.v_proj = Linear(d_model, self.d_v * num_heads)  
-        self.output_proj = Linear(self.d_v * num_heads, d_model) 
+        self.q_proj = Linear(d_model, self.d_v * num_heads, device=device, dtype=dtype) 
+        self.k_proj = Linear(d_model, self.d_v * num_heads, device=device, dtype=dtype) 
+        self.v_proj = Linear(d_model, self.d_v * num_heads, device=device, dtype=dtype)  
+        self.output_proj = Linear(self.d_v * num_heads, d_model, device=device, dtype=dtype) 
         
     
     def forward(self, 

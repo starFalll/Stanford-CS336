@@ -1,14 +1,14 @@
 import json
 import os
 import pathlib
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, Optional, Generator
 import typing
 import numpy as np
 import torch
 import torch.nn as nn
 import tqdm
 from jaxtyping import Float, Int
-from torch import Generator, Tensor
+from torch import Tensor
 from .softmax import Softmax
 import math
 import numpy.typing as npt
@@ -51,7 +51,7 @@ def get_val(
         dataset_loader = torch.tensor(dataset, dtype=torch.long, device=device)
         sampled_sequence = torch.stack([dataset_loader[i : i + context_length] for i in range(start_indices, start_indices+batch_size)])
         target_sequence = torch.stack([dataset_loader[i+1 : i + context_length + 1] for i in range(start_indices, start_indices+batch_size)])
-        yield [sampled_sequence, target_sequence]
+        yield sampled_sequence, target_sequence
 
 def cross_entropy(logits: Float[Tensor, " batch_size vocab_size"], targets: Int[Tensor, " batch_size"]) -> Float[Tensor, ""]:
     # use log-sum-exp trick to avoid overflow
@@ -151,10 +151,10 @@ class AdamW(torch.optim.Optimizer):
                 state["t"] = t + 1
         return loss
 
-CONFIG_PATH = "hyperparameters.json"
-DATA_DIR = pathlib.Path(__file__).resolve().parent / "data"
-TRAIN_DATA_PATH = os.path.join(DATA_DIR, "train.dat")
-VAL_DATA_PATH = os.path.join(DATA_DIR, "valid.dat")
+CONFIG_PATH = pathlib.Path(__file__).resolve().parent / "hyperparameters.json"
+DATA_DIR = pathlib.Path(__file__).resolve().parent.parent / "data"
+TRAIN_DATA_PATH = os.path.join(DATA_DIR, "TinyStoriesV2-GPT4-train.txt")
+VAL_DATA_PATH = os.path.join(DATA_DIR, "TinyStoriesV2-GPT4-valid.txt")
 
 def train(device = 'cpu'):
     # Load config
@@ -162,7 +162,7 @@ def train(device = 'cpu'):
         config = json.load(f)
     
     # Create model
-    model = Transformer(**config["model"]).to(device)
+    model = Transformer(**config["model"], device=device).to(device)
     # optimize this computation using compile
     model = torch.compile(model)
 
@@ -189,7 +189,7 @@ def train(device = 'cpu'):
     start_iter = 0
     if args.checkpoint:
         print(f"Resume from checkpoint {args.checkpoint}")
-        save_path = pathlib.Path(__file__).resolve().parent / f"checkpoints/ckp_iter_{args.checkpoint}.pt"
+        save_path = pathlib.Path(__file__).resolve().parent / f"{args.checkpoint_path}ckp_iter_{args.checkpoint}.pt"
         start_iter = load_checkpoint(save_path, model, optimizer)
         print(f"Resume iteration:{start_iter}")
     
@@ -238,7 +238,8 @@ def train(device = 'cpu'):
                  json.dump(params, f)
         
 
-
+if __name__ == "__main__":
+    train()
 
     
     
