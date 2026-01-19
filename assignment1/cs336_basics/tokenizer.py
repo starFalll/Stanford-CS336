@@ -26,7 +26,7 @@ except Exception:
     CPPYY_AVAILABLE = False
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-MAX_PROCESSES_NUM = 8
+MAX_PROCESSES_NUM = 1
 # Compile pattern once for reuse
 COMPILED_PAT = re.compile(PAT)
 
